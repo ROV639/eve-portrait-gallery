@@ -1,0 +1,982 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>EVE Portrait · 书架</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;500;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #0a0a0c; color: #e8e4dc; font-family: 'Inter', -apple-system, sans-serif; user-select: none; -webkit-user-select: none; }
+  canvas#scene { display: block; width: 100%; height: 100%; touch-action: none; cursor: default; transition: opacity 0.3s; }
+  canvas#scene.dragging { cursor: grabbing; }
+  canvas#scene.hover-book { cursor: pointer; }
+
+  /* ============ Top brand bar ============ */
+  header.brand {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 10;
+    padding: 22px 36px 18px;
+    display: flex; align-items: center; justify-content: space-between;
+    pointer-events: none;
+    background: linear-gradient(180deg, rgba(8,8,10,.85) 0%, rgba(8,8,10,0) 100%);
+  }
+  .brand-left { display: flex; align-items: baseline; gap: 14px; }
+  .brand-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 22px; font-weight: 500; letter-spacing: 0.18em;
+    color: #e8e4dc;
+  }
+  .brand-sub {
+    font-size: 11px; font-weight: 400; letter-spacing: 0.32em;
+    color: #8a857c; text-transform: uppercase;
+  }
+  .brand-right {
+    font-size: 11px; letter-spacing: 0.28em; color: #6b6760; text-transform: uppercase;
+  }
+
+  /* ============ Bottom hints ============ */
+  .hint {
+    position: fixed; left: 50%; bottom: 32px; transform: translateX(-50%);
+    font-size: 10px; letter-spacing: 0.32em; color: #6a6266; text-transform: uppercase;
+    z-index: 8; pointer-events: none; text-align: center;
+    transition: opacity .6s;
+  }
+  .hint.fade { opacity: 0; }
+  .back-btn {
+    position: fixed; top: 84px; left: 36px; z-index: 15;
+    padding: 10px 20px;
+    background: rgba(14,14,16,.7); backdrop-filter: blur(10px);
+    border: 1px solid rgba(200,184,120,.35); border-radius: 999px;
+    color: #c8b878; font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
+    cursor: pointer; opacity: 0; pointer-events: none;
+    transition: opacity .4s, background .25s;
+    font-family: 'Inter', sans-serif;
+  }
+  .back-btn.show { opacity: 1; pointer-events: auto; }
+  .back-btn:hover { background: rgba(200,184,120,.15); }
+
+  /* ============ Detail panel ============ */
+  aside.detail-panel {
+    position: fixed; right: 0; top: 0; bottom: 0; z-index: 20;
+    width: 380px; padding: 80px 36px 36px;
+    background: linear-gradient(180deg, rgba(14,14,16,.94), rgba(20,18,18,.96));
+    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+    border-left: 1px solid rgba(200,184,120,.18);
+    transform: translateX(100%);
+    transition: transform .55s cubic-bezier(.7,.05,.25,1);
+    display: flex; flex-direction: column;
+  }
+  aside.detail-panel.open { transform: translateX(0); }
+  .detail-eyebrow {
+    font-size: 10px; letter-spacing: 0.4em; color: #8a857c; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .detail-title {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 30px; line-height: 1.15; font-weight: 500;
+    color: #ece6d8; margin-bottom: 18px;
+  }
+  .detail-meta {
+    display: grid; grid-template-columns: 80px 1fr; row-gap: 8px;
+    font-size: 12px; line-height: 1.6;
+    border-top: 1px solid rgba(255,255,255,.08);
+    border-bottom: 1px solid rgba(255,255,255,.08);
+    padding: 16px 0; margin-bottom: 22px;
+  }
+  .detail-meta dt { color: #6b6760; letter-spacing: 0.12em; text-transform: uppercase; font-size: 10px; }
+  .detail-meta dd { color: #c8c2b4; }
+  .detail-desc {
+    font-size: 13px; line-height: 1.75; color: #a8a39a; flex: 1;
+  }
+  .detail-close {
+    margin-top: 18px; padding: 12px 22px;
+    background: transparent; color: #c8b878;
+    border: 1px solid rgba(200,184,120,.4);
+    font-size: 11px; letter-spacing: 0.32em; text-transform: uppercase;
+    cursor: pointer; align-self: flex-start;
+    transition: all .25s;
+  }
+  .detail-close:hover { background: rgba(200,184,120,.12); color: #e8d08a; }
+
+  /* ============ Loading ============ */
+  .loading {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+    background: #0a0a0c;
+    transition: opacity .6s, visibility .6s;
+  }
+  .loading.hidden { opacity: 0; visibility: hidden; }
+  .loading-text {
+    font-family: 'Cormorant Garamond', serif; font-size: 22px;
+    letter-spacing: 0.3em; color: #c8b878;
+  }
+  .loading-bar {
+    width: 220px; height: 1px; background: rgba(200,184,120,.15); overflow: hidden;
+  }
+  .loading-bar > div {
+    height: 100%; width: 0%; background: #c8b878; transition: width .3s;
+  }
+
+  /* ============ Fade overlay (for transitions) ============ */
+  .fade-overlay {
+    position: fixed; inset: 0; z-index: 50;
+    background: #0a0a0c; opacity: 0; pointer-events: none;
+    transition: opacity .35s ease;
+  }
+  .fade-overlay.on { opacity: 1; }
+
+  @media (max-width: 760px) {
+    aside.detail-panel { width: 100%; padding: 70px 24px 24px; }
+    .back-btn { top: 76px; left: 20px; }
+    header.brand { padding: 16px 20px 14px; }
+    .brand-name { font-size: 18px; }
+    .brand-sub { font-size: 9px; }
+  }
+</style>
+</head>
+<body>
+  <div class="loading" id="loading">
+    <div class="loading-text">Curating the shelf…</div>
+    <div class="loading-bar"><div id="progressBar"></div></div>
+  </div>
+
+  <div class="fade-overlay" id="fadeOverlay"></div>
+
+  <header class="brand">
+    <div class="brand-left">
+      <div class="brand-name">EVE PORTRAIT</div>
+      <div class="brand-sub">A Shelf of Three Volumes</div>
+    </div>
+    <div class="brand-right">Edition 01 · 2026</div>
+  </header>
+
+  <button class="back-btn" id="backBtn">← Back to Shelf</button>
+
+  <div class="hint" id="hint">Hover to peek · Click a volume to enter</div>
+
+  <aside class="detail-panel" id="detailPanel" aria-live="polite">
+    <div class="detail-eyebrow" id="dEyebrow">— · —</div>
+    <div class="detail-title" id="dTitle">—</div>
+    <dl class="detail-meta">
+      <dt>Location</dt><dd id="dLocation">—</dd>
+      <dt>Date</dt><dd id="dDate">—</dd>
+      <dt>Mood</dt><dd id="dMood">—</dd>
+      <dt>Category</dt><dd id="dCategory">—</dd>
+    </dl>
+    <div class="detail-desc" id="dDesc">—</div>
+    <button class="detail-close" id="dClose">Close · Esc</button>
+  </aside>
+
+  <canvas id="scene"></canvas>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.165.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.165.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+  // ============ Data ============
+  const BOOKS = [
+    {
+      key: 'urban',
+      title: 'Urban Night',
+      subtitle: 'Volume I',
+      color: 0x1a2332,
+      foilColor: '#c8b878',
+      spineText: 'URBAN NIGHT',
+      description: 'Five evenings in the city. Neon, rain, and the quiet geometry of being alone in crowds.',
+      spotlightColor: 0x9a7ad0,
+      photos: [
+        { file: 'top_01_shanghai_night.png', title: 'Shanghai · Gaze Beyond', location: '上海 · 夜景', date: '2026-05-10', mood: '远眺', desc: '霓虹漫过眉骨。远处的灯火被江水揉碎，她背对一切喧嚣，只留下侧脸的轮廓线。' },
+        { file: 'top_02_rainy_city.png',     title: 'Rainy Night · Over the Shoulder', location: '都市 · 雨夜', date: '2026-05-10', mood: '回眸', desc: '雨后的玻璃把一切压成冷蓝色。她回头的瞬间，整条街的湿度都凝结在睫毛上。' },
+        { file: 'top_03_shibuya.png',         title: 'Shibuya Crossing · Stare', location: '涩谷 · 十字路口', date: '2026-05-06', mood: '凝望', desc: '人群像潮水一样从两侧涌过。她站在斑马线中央不动，像一块被海绕过的礁石。' },
+        { file: 'top_04_shenzhen_otd.png',    title: 'Shenzhen Bay · Sky Bridge', location: '深圳湾 · 夏日OOTD', date: '2026-06-22', mood: '远眺', desc: '天桥的边缘把城市切成两半：一边是密集的玻璃幕墙，一边是被光晒透的天空。' },
+        { file: 'top_05_starbucks.png',       title: 'Starbucks Entrance · Push In', location: '星巴克 · 门口', date: '2026-05-06', mood: '推门', desc: '门即将推开的瞬间。她的肩胛骨微微前倾，下一个动作是进入还是离开，没人知道。' },
+      ]
+    },
+    {
+      key: 'interior',
+      title: 'Interior Light',
+      subtitle: 'Volume II',
+      color: 0x2a1f18,
+      foilColor: '#d4a878',
+      spineText: 'INTERIOR LIGHT',
+      description: 'Warm rooms, slow afternoons. Tea going cold while something else entirely is being decided.',
+      spotlightColor: 0xffc888,
+      photos: [
+        { file: 'mid_01_cafe_sitting.png', title: 'Café · Sitting Still', location: '咖啡馆 · 午后', date: '2026-05-13', mood: '端坐', desc: '午后的咖啡馆只属于一种人：把咖啡端在手里很久却一口没喝的。她就是那种人。' },
+        { file: 'mid_02_cafe_sip.png',     title: 'Café · The Sip', location: '咖啡馆 · 午后', date: '2026-05-13', mood: '啜饮', desc: '杯子凑到唇边的瞬间，时间被定格。外面所有的事情，都比这一口咖啡更重要，也比这一口更不重要。' },
+        { file: 'mid_03_istanbul_tea.png', title: 'Istanbul · Tea Time', location: '伊斯坦布尔', date: '2026-05-13', mood: '喝茶', desc: '红茶的琥珀色映在眼底。博斯普鲁斯的风穿过窗帘，茶还没凉，故事已经讲完。' },
+        { file: 'mid_04_istanbul_rest.png',title: 'Istanbul · Resting on Hand', location: '伊斯坦布尔', date: '2026-05-13', mood: '托腮', desc: '一只手撑住下巴。这个姿势意味着她在等什么，或者在拒绝等什么，照片没告诉我们。' },
+        { file: 'mid_05_cafe_crossleg.png',title: 'Café · Crossed Legs', location: '咖啡馆 · 午后', date: '2026-05-13', mood: '跷腿', desc: '跷起的腿把空间切出一道斜线。她什么都没说，但整个房间的重心都被重新分配。' },
+      ]
+    },
+    {
+      key: 'shore',
+      title: 'Open Shore',
+      subtitle: 'Volume III',
+      color: 0x0f1c26,
+      foilColor: '#a8c8d8',
+      spineText: 'OPEN SHORE',
+      description: 'Five afternoons where the horizon is the only thing that answers. Wind, salt, the slow surrender.',
+      spotlightColor: 0x8ec8e0,
+      photos: [
+        { file: 'bot_01_terrace.png',      title: 'Terrace · On the Rail', location: '海景 · 露台', date: '2026-05-14', mood: '凭栏', desc: '栏杆把人和海隔开，也把人和自己隔开。她靠在上面，海平面和她的视线刚好持平。' },
+        { file: 'bot_02_sunset_gaze.png',  title: 'Sunset · Gaze', location: '海边 · 日落', date: '2026-05-13', mood: '凝视', desc: '太阳快落下去的时候，她没有看镜头，也没有看海。她看的是更远的地方，照片拍不到的那种远。' },
+        { file: 'bot_03_beach_side.png',   title: 'Beach · Side Glance', location: '海边 · 漫步', date: '2026-05-13', mood: '侧望', desc: '风把头发吹向一侧。她的眼睛也跟着风走，看到了什么不重要，重要的是这一刻她允许自己被风带走。' },
+        { file: 'bot_04_kamakura.png',     title: 'Kamakura · Standing Still', location: '镰仓 · 海边', date: '2026-05-24', mood: '伫立', desc: '镰仓的海总是温柔得不像海。她站在那里很久，久到浪在她脚边停下来不动了。' },
+        { file: 'bot_05_sunset_walk.png',  title: 'Sunset · Walking', location: '海边 · 日落', date: '2026-05-13', mood: '漫步', desc: '她向落日走去，但镜头始终追在她身后。最后太阳先停下，她还在走。' },
+      ]
+    }
+  ];
+
+  // ============ Three.js setup ============
+  const canvas = document.getElementById('scene');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: false });
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.0;
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+  const scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a0a0c);
+  scene.fog = new THREE.Fog(0x0a0a0c, 20, 50);
+
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+  const camera = new THREE.PerspectiveCamera(40, window.innerWidth / window.innerHeight, 0.1, 200);
+
+  // 相机初始位置（书架视角）
+  const SHELF_CAM_POS = new THREE.Vector3(0, 1.6, 11);
+  const SHELF_CAM_TGT = new THREE.Vector3(0, 1.6, 0);
+  camera.position.copy(SHELF_CAM_POS);
+  camera.lookAt(SHELF_CAM_TGT);
+
+  // ============ Lights ============
+  const hemi = new THREE.HemisphereLight(0x6a6266, 0x0c0a0a, 0.4);
+  scene.add(hemi);
+  const ambient = new THREE.AmbientLight(0x2a2622, 0.5);
+  scene.add(ambient);
+
+  // 主射灯（顶光）
+  const mainSpot = new THREE.SpotLight(0xfff2dc, 2.5, 30, Math.PI * 0.35, 0.6, 1.6);
+  mainSpot.position.set(0, 7, 6);
+  mainSpot.target.position.set(0, 0, 0);
+  mainSpot.castShadow = true;
+  mainSpot.shadow.mapSize.set(1024, 1024);
+  mainSpot.shadow.bias = -0.0005;
+  scene.add(mainSpot);
+  scene.add(mainSpot.target);
+
+  // ============ Floor + desk ============
+  const floorMat = new THREE.MeshStandardMaterial({
+    color: 0x0c0c0e, roughness: 0.9, metalness: 0.1,
+    envMapIntensity: 0.3,
+  });
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), floorMat);
+  floor.rotation.x = -Math.PI / 2;
+  floor.position.y = -2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // 木桌面（书立在上面）
+  const deskMat = new THREE.MeshStandardMaterial({
+    color: 0x2a1f18, roughness: 0.5, metalness: 0.1,
+    envMapIntensity: 0.5,
+  });
+  const desk = new THREE.Mesh(new THREE.BoxGeometry(30, 0.15, 4), deskMat);
+  desk.position.set(0, -0.05, 0);
+  desk.receiveShadow = true;
+  desk.castShadow = true;
+  scene.add(desk);
+
+  // 后墙（书架背景）
+  const backWall = new THREE.Mesh(
+    new THREE.PlaneGeometry(60, 30),
+    new THREE.MeshStandardMaterial({ color: 0x0d0d10, roughness: 0.95, metalness: 0.02 })
+  );
+  backWall.position.set(0, 5, -3);
+  backWall.receiveShadow = true;
+  scene.add(backWall);
+
+  // ============ Cover texture generator (canvas) ============
+  function makeCoverTexture(book) {
+    const c = document.createElement('canvas');
+    c.width = 512;
+    c.height = 768;
+    const ctx = c.getContext('2d');
+
+    // 底色（布面质感：径向渐变 + 噪点）
+    const grad = ctx.createLinearGradient(0, 0, 512, 768);
+    const baseColor = new THREE.Color(book.color);
+    grad.addColorStop(0, '#' + baseColor.clone().multiplyScalar(1.15).getHexString());
+    grad.addColorStop(1, '#' + baseColor.clone().multiplyScalar(0.75).getHexString());
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, 512, 768);
+
+    // 布面纹理（噪点）
+    ctx.globalAlpha = 0.06;
+    for (let i = 0; i < 4000; i++) {
+      const x = Math.random() * 512;
+      const y = Math.random() * 768;
+      ctx.fillStyle = Math.random() > 0.5 ? '#ffffff' : '#000000';
+      ctx.fillRect(x, y, 1, 1);
+    }
+    ctx.globalAlpha = 1;
+
+    // 烫金装饰边框
+    ctx.strokeStyle = book.foilColor;
+    ctx.lineWidth = 1.5;
+    ctx.strokeRect(40, 40, 512 - 80, 768 - 80);
+    ctx.strokeRect(48, 48, 512 - 96, 768 - 96);
+
+    // 烫金副标题
+    ctx.fillStyle = book.foilColor;
+    ctx.font = '300 24px Cormorant Garamond, serif';
+    ctx.textAlign = 'center';
+    ctx.letterSpacing = '0.4em';
+    ctx.fillText(book.subtitle, 256, 100);
+
+    // 烫金主标题
+    ctx.font = '600 64px Cormorant Garamond, serif';
+    ctx.letterSpacing = '0.08em';
+    ctx.fillText(book.title, 256, 340);
+
+    // 烫金分割线
+    ctx.fillRect(180, 380, 152, 1.5);
+
+    // 烫金英文小字（mood）
+    ctx.font = '300 18px Inter, sans-serif';
+    ctx.letterSpacing = '0.3em';
+    ctx.fillText('FIVE FRAMES', 256, 420);
+
+    // 烫金底部
+    ctx.font = '300 16px Cormorant Garamond, serif';
+    ctx.letterSpacing = '0.3em';
+    ctx.fillText('EVE · PORTRAIT', 256, 700);
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+    return tex;
+  }
+
+  function makeSpineTexture(book) {
+    const c = document.createElement('canvas');
+    c.width = 64;
+    c.height = 768;
+    const ctx = c.getContext('2d');
+    const baseColor = new THREE.Color(book.color);
+    ctx.fillStyle = '#' + baseColor.clone().multiplyScalar(0.85).getHexString();
+    ctx.fillRect(0, 0, 64, 768);
+
+    // 烫金文字（垂直）
+    ctx.save();
+    ctx.translate(32, 384);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = book.foilColor;
+    ctx.font = '500 20px Cormorant Garamond, serif';
+    ctx.textAlign = 'center';
+    ctx.letterSpacing = '0.3em';
+    ctx.fillText(book.spineText, 0, 7);
+    ctx.restore();
+
+    const tex = new THREE.CanvasTexture(c);
+    tex.colorSpace = THREE.SRGBColorSpace;
+    return tex;
+  }
+
+  // ============ Build book ============
+  const BOOK_W = 1.6;
+  const BOOK_H = 2.4;
+  const BOOK_D = 0.28;   // 厚度
+  const COVER_OPEN = 0.45; // 封面最大开启角度（rad）
+  const bookGroups = [];
+
+  function makeBook(book, index, total) {
+    const grp = new THREE.Group();
+    grp.userData.book = book;
+    grp.userData.index = index;
+
+    // 书体（page block + back cover 一体）
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: 0xd8d0c0, roughness: 0.85, metalness: 0,
+    });
+    const body = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W - 0.04, BOOK_H - 0.04, BOOK_D - 0.02),
+      bodyMat
+    );
+    body.castShadow = true;
+    body.receiveShadow = true;
+    grp.add(body);
+
+    // 后封皮
+    const backMat = new THREE.MeshStandardMaterial({
+      color: book.color, roughness: 0.6, metalness: 0.05,
+    });
+    const back = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W, BOOK_H, 0.012),
+      backMat
+    );
+    back.position.z = -(BOOK_D / 2 - 0.006);
+    back.castShadow = true;
+    grp.add(back);
+
+    // 书脊
+    const spineMat = new THREE.MeshStandardMaterial({
+      map: makeSpineTexture(book), roughness: 0.55, metalness: 0.05,
+    });
+    const spine = new THREE.Mesh(
+      new THREE.BoxGeometry(0.02, BOOK_H, BOOK_D),
+      spineMat
+    );
+    spine.position.x = -(BOOK_W / 2 - 0.01);
+    spine.castShadow = true;
+    grp.add(spine);
+
+    // 前封皮（可开启，hinge 在左侧）
+    const coverTex = makeCoverTexture(book);
+    const coverMat = new THREE.MeshStandardMaterial({
+      map: coverTex, roughness: 0.55, metalness: 0.05,
+    });
+    const coverBackMat = new THREE.MeshStandardMaterial({
+      color: book.color, roughness: 0.6, metalness: 0.05,
+    });
+
+    const cover = new THREE.Mesh(
+      new THREE.BoxGeometry(BOOK_W, BOOK_H, 0.015),
+      [coverBackMat, coverBackMat, coverBackMat, coverBackMat, coverMat, coverBackMat]
+    );
+    cover.castShadow = true;
+
+    // 用 pivot group 让封面绕左边缘旋转
+    const coverPivot = new THREE.Group();
+    coverPivot.position.set(-(BOOK_W / 2), 0, BOOK_D / 2 - 0.008);
+    cover.position.set(BOOK_W / 2, 0, 0);
+    coverPivot.add(cover);
+    grp.add(coverPivot);
+    grp.userData.coverPivot = coverPivot;
+
+    // hitMesh 是整个书体（包括封面）
+    grp.userData.hitMesh = body;
+
+    // 书架位置（横向排开）
+    const gap = 2.4;
+    const startX = -((total - 1) / 2) * gap;
+    grp.position.set(startX + index * gap, BOOK_H / 2, 0);
+    grp.userData.homePos = grp.position.clone();
+    grp.userData.homeQuat = grp.quaternion.clone();
+
+    scene.add(grp);
+    return grp;
+  }
+
+  BOOKS.forEach((book, i) => {
+    const g = makeBook(book, i, BOOKS.length);
+    bookGroups.push(g);
+  });
+
+  // ============ Photo wall scene (per book) ============
+  // 我们建一个统一的 photoWallGroup，按需切换内容
+  const FRAME_W = 1.7;
+  const FRAME_H = 2.3;
+  const FRAME_D = 0.08;
+  const PHOTO_GAP = 2.4;
+  const photoWallGroup = new THREE.Group();
+  photoWallGroup.visible = false;
+  scene.add(photoWallGroup);
+
+  let currentBook = null;
+  let currentWallFrames = [];
+  let wallOffset = 0;
+  let wallVelocity = 0;
+
+  function buildPhotoWall(book) {
+    // 清空旧内容
+    while (photoWallGroup.children.length > 0) {
+      photoWallGroup.remove(photoWallGroup.children[0]);
+    }
+    currentWallFrames = [];
+
+    // 背景墙（用书的主题色，但更深）
+    const bgColor = new THREE.Color(book.color).multiplyScalar(0.5);
+    const wallMat = new THREE.MeshStandardMaterial({
+      color: bgColor, roughness: 0.95, metalness: 0.02,
+    });
+    const totalWidth = book.photos.length * PHOTO_GAP + 6;
+    const wall = new THREE.Mesh(
+      new THREE.BoxGeometry(totalWidth, 4.5, 0.15),
+      wallMat
+    );
+    wall.position.set(0, FRAME_H / 2 - 0.3, -0.5);
+    wall.receiveShadow = true;
+    photoWallGroup.add(wall);
+
+    // 顶部装饰条
+    const trimMat = new THREE.MeshStandardMaterial({
+      color: new THREE.Color(book.spotlightColor).multiplyScalar(0.6),
+      roughness: 0.5, metalness: 0.5
+    });
+    const trim = new THREE.Mesh(
+      new THREE.BoxGeometry(totalWidth, 0.03, 0.03),
+      trimMat
+    );
+    trim.position.set(0, FRAME_H + 0.6, -0.42);
+    photoWallGroup.add(trim);
+
+    // 每张照片
+    book.photos.forEach((photo, i) => {
+      const frame = new THREE.Group();
+      frame.userData.photo = photo;
+      frame.userData.index = i;
+
+      // 外框
+      const frameMat = new THREE.MeshStandardMaterial({
+        color: 0x1a1815, roughness: 0.4, metalness: 0.55,
+        envMapIntensity: 0.6,
+      });
+      const outerFrame = new THREE.Mesh(
+        new THREE.BoxGeometry(FRAME_W, FRAME_H, FRAME_D),
+        frameMat
+      );
+      outerFrame.castShadow = true;
+      outerFrame.receiveShadow = true;
+      frame.add(outerFrame);
+
+      // 白卡纸 mat
+      const matMat = new THREE.MeshStandardMaterial({
+        color: 0xeae3d2, roughness: 0.95, metalness: 0,
+      });
+      const matBoard = new THREE.Mesh(
+        new THREE.BoxGeometry(FRAME_W - 0.1, FRAME_H - 0.1, FRAME_D + 0.005),
+        matMat
+      );
+      matBoard.position.z = 0.002;
+      frame.add(matBoard);
+
+      // 照片
+      const photoMat = new THREE.MeshStandardMaterial({
+        color: 0x333333, roughness: 0.55, metalness: 0,
+        envMapIntensity: 0.3,
+      });
+      const photoPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(FRAME_W - 0.16, FRAME_H - 0.16),
+        photoMat
+      );
+      photoPlane.position.z = FRAME_D / 2 + 0.002;
+      photoPlane.receiveShadow = true;
+      frame.add(photoPlane);
+      frame.userData.photoPlane = photoPlane;
+      frame.userData.outerFrame = outerFrame;
+      frame.userData.hitMesh = outerFrame;
+
+      const x = (i - (book.photos.length - 1) / 2) * PHOTO_GAP;
+      frame.position.set(x, FRAME_H / 2 - 0.2, 0);
+      photoWallGroup.add(frame);
+      currentWallFrames.push(frame);
+    });
+
+    // 照片墙射灯
+    const spot = new THREE.SpotLight(book.spotlightColor, 2.0, 20, Math.PI * 0.3, 0.6, 1.4);
+    spot.position.set(0, 5, 4);
+    spot.target.position.set(0, 1, 0);
+    spot.castShadow = true;
+    photoWallGroup.add(spot);
+    photoWallGroup.add(spot.target);
+    photoWallGroup.userData.spot = spot;
+  }
+
+  // ============ Load textures ============
+  const texLoader = new THREE.TextureLoader();
+  let totalToLoad = BOOKS.reduce((s, b) => s + b.photos.length, 0);
+  let loadedCount = 0;
+  const progressBar = document.getElementById('progressBar');
+
+  function updateProgress() {
+    const pct = Math.round((loadedCount / totalToLoad) * 100);
+    progressBar.style.width = pct + '%';
+    if (loadedCount >= totalToLoad) {
+      setTimeout(() => document.getElementById('loading').classList.add('hidden'), 200);
+    }
+  }
+
+  // 预加载所有照片纹理，存到 map
+  const textureCache = new Map();
+  BOOKS.forEach(book => {
+    book.photos.forEach(photo => {
+      const url = 'images/' + photo.file;
+      texLoader.load(url, (tex) => {
+        tex.colorSpace = THREE.SRGBColorSpace;
+        tex.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+        tex.minFilter = THREE.LinearMipmapLinearFilter;
+        tex.generateMipmaps = true;
+        textureCache.set(photo.file, tex);
+        loadedCount++;
+        updateProgress();
+      }, undefined, (err) => {
+        console.warn('failed', url, err);
+        loadedCount++;
+        updateProgress();
+      });
+    });
+  });
+
+  // 兜底
+  setTimeout(() => document.getElementById('loading').classList.add('hidden'), 10000);
+
+  // ============ State machine ============
+  // shelf -> entering -> wall -> exiting -> shelf
+  let state = 'shelf';
+  let hoveredBook = null;
+  let hoveredFrame = null;
+  let inspectingPhoto = null;
+
+  const fadeOverlay = document.getElementById('fadeOverlay');
+  const backBtn = document.getElementById('backBtn');
+  const hint = document.getElementById('hint');
+
+  // ============ Raycaster ============
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  function getHitTargets() {
+    if (state === 'shelf') return bookGroups.map(g => g.userData.hitMesh);
+    if (state === 'wall') return currentWallFrames.map(f => f.userData.hitMesh);
+    return [];
+  }
+
+  // ============ Pointer events ============
+  const drag = { active: false, startX: 0, startY: 0, lastX: 0, lastT: 0, moved: 0, velocity: 0, pointerId: null };
+
+  canvas.addEventListener('pointerdown', (e) => {
+    if (state !== 'wall') return;
+    drag.active = true;
+    drag.pointerId = e.pointerId;
+    drag.startX = e.clientX;
+    drag.startY = e.clientY;
+    drag.lastX = e.clientX;
+    drag.lastT = performance.now();
+    drag.moved = 0;
+    drag.velocity = 0;
+    canvas.setPointerCapture(e.pointerId);
+    canvas.classList.add('dragging');
+  });
+
+  canvas.addEventListener('pointermove', (e) => {
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+
+    if (state === 'shelf') {
+      raycaster.setFromCamera(pointer, camera);
+      const hits = raycaster.intersectObjects(getHitTargets(), false);
+      const newHover = hits.length ? hits[0].object.parent : null;
+      if (newHover !== hoveredBook) {
+        hoveredBook = newHover;
+        canvas.classList.toggle('hover-book', !!hoveredBook);
+      }
+    } else if (state === 'wall') {
+      if (drag.active && drag.pointerId === e.pointerId) {
+        const dx = e.clientX - drag.lastX;
+        drag.moved += Math.abs(dx);
+        if (drag.moved > 5) {
+          const worldPerPx = worldUnitsPerPixel();
+          const delta = -dx * worldPerPx;
+          setWallOffset(wallOffset + delta);
+          const now = performance.now();
+          const dt = Math.max(1, now - drag.lastT);
+          drag.velocity = delta / dt;
+          drag.lastT = now;
+        }
+        drag.lastX = e.clientX;
+      } else {
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(getHitTargets(), false);
+        const newHover = hits.length ? hits[0].object.parent : null;
+        if (newHover !== hoveredFrame) {
+          if (hoveredFrame) {
+            hoveredFrame.userData.outerFrame.material.emissive = new THREE.Color(0x000000);
+            hoveredFrame.userData.outerFrame.material.emissiveIntensity = 0;
+          }
+          hoveredFrame = newHover;
+          if (hoveredFrame) {
+            hoveredFrame.userData.outerFrame.material.emissive = new THREE.Color(0xc8b878);
+            hoveredFrame.userData.outerFrame.material.emissiveIntensity = 0.25;
+            canvas.style.cursor = 'pointer';
+          } else {
+            canvas.style.cursor = '';
+          }
+        }
+      }
+    }
+  });
+
+  window.addEventListener('pointerup', (e) => {
+    if (drag.pointerId !== e.pointerId) return;
+    const wasDragging = drag.moved > 5;
+    drag.active = false;
+    canvas.classList.remove('dragging');
+    try { canvas.releasePointerCapture(drag.pointerId); } catch(_) {}
+    drag.pointerId = null;
+
+    if (state === 'wall' && wasDragging) {
+      // inertia
+      let v = drag.velocity * 16;
+      const friction = 0.94;
+      function step() {
+        if (Math.abs(v) < 0.0008 || state !== 'wall') return;
+        setWallOffset(wallOffset + v);
+        v *= friction;
+        requestAnimationFrame(step);
+      }
+      step();
+    }
+  });
+
+  canvas.addEventListener('click', (e) => {
+    if (drag.moved > 5) return; // 是拖拽不是点击
+    pointer.x = (e.clientX / window.innerWidth) * 2 - 1;
+    pointer.y = -(e.clientY / window.innerHeight) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    const hits = raycaster.intersectObjects(getHitTargets(), false);
+
+    if (state === 'shelf' && hits.length) {
+      const book = hits[0].object.parent.userData.book;
+      enterBook(book, hits[0].object.parent);
+    } else if (state === 'wall') {
+      if (hits.length) {
+        const photo = hits[0].object.parent.userData.photo;
+        showPhotoDetail(photo, hits[0].object.parent);
+      } else if (inspectingPhoto) {
+        closePhotoDetail();
+      }
+    }
+  });
+
+  // ============ Wheel (only in wall state) ============
+  canvas.addEventListener('wheel', (e) => {
+    if (state !== 'wall') return;
+    e.preventDefault();
+    const worldPerPx = worldUnitsPerPixel();
+    const delta = -(e.deltaX || e.deltaY) * worldPerPx * 0.8;
+    setWallOffset(wallOffset + delta);
+  }, { passive: false });
+
+  // ============ Keyboard ============
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (inspectingPhoto) { closePhotoDetail(); return; }
+      if (state === 'wall') { exitBook(); return; }
+    }
+    if (state === 'wall') {
+      const step = 1.5;
+      if (e.key === 'ArrowLeft') setWallOffset(wallOffset - step);
+      if (e.key === 'ArrowRight') setWallOffset(wallOffset + step);
+    }
+  });
+
+  backBtn.addEventListener('click', () => {
+    if (state === 'wall') exitBook();
+  });
+
+  // ============ Wall offset helpers ============
+  function worldUnitsPerPixel() {
+    const dist = camera.position.distanceTo(new THREE.Vector3(0, 1.6, 0));
+    const vFov = camera.fov * Math.PI / 180;
+    const heightAtWall = 2 * dist * Math.tan(vFov / 2);
+    return heightAtWall / window.innerHeight;
+  }
+
+  function setWallOffset(v) {
+    if (!currentBook) { wallOffset = v; return; }
+    const maxOffset = (currentBook.photos.length - 1) * PHOTO_GAP / 2 + 1.5;
+    wallOffset = Math.max(-maxOffset, Math.min(maxOffset, v));
+    photoWallGroup.position.x = wallOffset;
+    if (photoWallGroup.userData.spot) {
+      photoWallGroup.userData.spot.position.x = wallOffset;
+      photoWallGroup.userData.spot.target.position.x = wallOffset;
+    }
+  }
+
+  // ============ Photo detail panel ============
+  function showPhotoDetail(photo, frame) {
+    inspectingPhoto = frame;
+    document.getElementById('dEyebrow').textContent = currentBook.title + ' · ' + currentBook.subtitle;
+    document.getElementById('dTitle').textContent = photo.title;
+    document.getElementById('dLocation').textContent = photo.location;
+    document.getElementById('dDate').textContent = photo.date;
+    document.getElementById('dMood').textContent = photo.mood;
+    document.getElementById('dCategory').textContent = currentBook.key === 'urban' ? 'Urban Portrait' : (currentBook.key === 'interior' ? 'Interior Portrait' : 'Landscape Portrait');
+    document.getElementById('dDesc').textContent = photo.desc;
+    document.getElementById('detailPanel').classList.add('open');
+
+    // 平移墙让选中照片对准镜头
+    const targetOffset = -frame.position.x - photoWallGroup.position.x + photoWallGroup.position.x; // 简化为 -frame.position.x
+    animateWallOffsetTo(-frame.position.x);
+  }
+  function closePhotoDetail() {
+    inspectingPhoto = null;
+    document.getElementById('detailPanel').classList.remove('open');
+  }
+  document.getElementById('dClose').addEventListener('click', closePhotoDetail);
+
+  function animateWallOffsetTo(target) {
+    const start = wallOffset;
+    const t0 = performance.now();
+    const dur = 600;
+    function step() {
+      const t = Math.min((performance.now() - t0) / dur, 1);
+      const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+      setWallOffset(start + (target - start) * e);
+      if (t < 1) requestAnimationFrame(step);
+    }
+    step();
+  }
+
+  // ============ Enter / Exit book ============
+  function enterBook(book, bookGroup) {
+    if (state !== 'shelf') return;
+    state = 'entering';
+    hint.classList.add('fade');
+    currentBook = book;
+
+    // 把纹理贴到对应的 wall frames
+    buildPhotoWall(book);
+    currentWallFrames.forEach(frame => {
+      const tex = textureCache.get(frame.userData.photo.file);
+      if (tex) {
+        frame.userData.photoPlane.material.map = tex;
+        frame.userData.photoPlane.material.color.set(0xffffff);
+        frame.userData.photoPlane.material.needsUpdate = true;
+      }
+    });
+
+    // 动画1：相机推向书
+    const bookPos = new THREE.Vector3();
+    bookGroup.getWorldPosition(bookPos);
+    const t0 = performance.now();
+    const dur1 = 700;
+    const startPos = camera.position.clone();
+    const startTgt = SHELF_CAM_TGT.clone();
+    const midPos = bookPos.clone().add(new THREE.Vector3(0, 0, 1.8));
+    const midTgt = bookPos.clone();
+
+    function step1() {
+      const t = Math.min((performance.now() - t0) / dur1, 1);
+      const e = t < 0.5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+      camera.position.lerpVectors(startPos, midPos, e);
+      camera.lookAt(midTgt);
+      // 书也微微前倾迎向相机
+      bookGroup.rotation.x = -e * 0.15;
+      // 封面逐渐打开
+      bookGroup.userData.coverPivot.rotation.y = -e * COVER_OPEN;
+      if (t < 1) requestAnimationFrame(step1);
+      else {
+        // 动画2：fade 切换到照片墙
+        fadeOverlay.classList.add('on');
+        setTimeout(() => {
+          // 切换可见性
+          bookGroups.forEach(g => g.visible = false);
+          photoWallGroup.visible = true;
+          setWallOffset(0);
+          // 相机reposition到照片墙视角
+          camera.position.set(0, 1.6, 9);
+          camera.lookAt(0, 1.6, 0);
+          // 复位书
+          bookGroup.rotation.x = 0;
+          bookGroup.userData.coverPivot.rotation.y = 0;
+          // 显示返回按钮
+          backBtn.classList.add('show');
+          backBtn.textContent = '← Back to Shelf · ' + book.title;
+          // fade in
+          setTimeout(() => {
+            fadeOverlay.classList.remove('on');
+            state = 'wall';
+          }, 80);
+        }, 380);
+      }
+    }
+    step1();
+  }
+
+  function exitBook() {
+    if (state !== 'wall') return;
+    state = 'exiting';
+    closePhotoDetail();
+
+    fadeOverlay.classList.add('on');
+    setTimeout(() => {
+      photoWallGroup.visible = false;
+      bookGroups.forEach(g => g.visible = true);
+      // 相机回到书架视角
+      camera.position.copy(SHELF_CAM_POS);
+      camera.lookAt(SHELF_CAM_TGT);
+      backBtn.classList.remove('show');
+      currentBook = null;
+      setTimeout(() => {
+        fadeOverlay.classList.remove('on');
+        state = 'shelf';
+        hint.classList.remove('fade');
+      }, 80);
+    }, 380);
+  }
+
+  // ============ Idle animations (shelf state) ============
+  const clock = new THREE.Clock();
+  function idleBooks(t) {
+    bookGroups.forEach((g, i) => {
+      if (!g.visible) return;
+      // 轻微上下浮动
+      g.position.y = g.userData.homePos.y + Math.sin(t * 0.6 + i * 1.3) * 0.02;
+      // 轻微摆动
+      g.rotation.y = Math.sin(t * 0.4 + i * 2.1) * 0.02;
+      // hover 时书微微前倾
+      const targetTilt = (g === hoveredBook) ? -0.12 : 0;
+      g.rotation.x += (targetTilt - g.rotation.x) * 0.08;
+      // hover 时封面半开
+      const targetCover = (g === hoveredBook) ? -COVER_OPEN * 0.6 : 0;
+      const cur = g.userData.coverPivot.rotation.y;
+      g.userData.coverPivot.rotation.y = cur + (targetCover - cur) * 0.1;
+    });
+  }
+
+  // ============ Render loop ============
+  function tick() {
+    const t = clock.getElapsedTime();
+    if (state === 'shelf' || state === 'entering') {
+      idleBooks(t);
+    }
+    // 照片墙 hover 凸出
+    if (state === 'wall') {
+      currentWallFrames.forEach(f => {
+        const isHover = (f === hoveredFrame && !inspectingPhoto);
+        const targetZ = isHover ? 0.15 : 0;
+        f.position.z += (targetZ - f.position.z) * 0.15;
+      });
+    }
+    renderer.render(scene, camera);
+    requestAnimationFrame(tick);
+  }
+  tick();
+
+  // ============ Resize ============
+  window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+  });
+  </script>
+</body>
+</html>
