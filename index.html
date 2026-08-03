@@ -2229,8 +2229,9 @@
     const openingCameraTarget = new THREE.Vector3();
     const openingShelfPosition = new THREE.Vector3();
     const inspectShelfPosition = new THREE.Vector3(0, -4.2, -3);
+    // 书平躺：绕 Z 旋转 -90°，让书脊在水平方向（朝向 / 远离相机），封面 / 内页朝上
     const inspectBookQuaternion = new THREE.Quaternion().setFromEuler(
-      new THREE.Euler(0.055, -0.14, 0)
+      new THREE.Euler(-Math.PI * 0.5, 0, 0)
     );
     const inspectBookScale = new THREE.Vector3();
     const closingBookPosition = new THREE.Vector3();
@@ -4090,8 +4091,9 @@
       const narrow = viewWidth < 820;
       shelfCameraPosition.set(0, narrow ? 2.02 : 1.92, narrow ? 8.7 : 8.1);
       shelfCameraTarget.set(0, narrow ? 1.57 : 1.55, 0);
-      inspectPosition.set(narrow ? 0 : -2.25, narrow ? 2.3 : 1.56, narrow ? 0.15 : 0);
-      inspectCameraPosition.set(narrow ? 0 : -0.52, narrow ? 2.46 : 1.78, narrow ? 5.7 : 5.25);
+      // 书平躺：书位置在中央高度，相机从正前稍上方俯视一片水平页面
+      inspectPosition.set(narrow ? 0 : -2.25, narrow ? 1.0 : 0.8, narrow ? 0 : 0);
+      inspectCameraPosition.set(narrow ? 0 : -0.52, narrow ? 2.0 : 1.8, narrow ? 5.7 : 5.25);
       inspectCameraTarget.copy(inspectPosition);
 
       if (narrow) {
